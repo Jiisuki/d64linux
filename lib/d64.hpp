@@ -5,6 +5,21 @@
 #include <algorithm>
 #include <fstream>
 
+// todo list:
+//      * make it possible to add programs to an already created disk.
+//      * write a c64 "simulator"
+//      * write the "host" disk station firmware as a linux app, so that
+//        in preparation for the hardware.
+//
+// Later, the hardware could be simplified to connect up to a rPi or computer
+// and communicate over serial (?). The hardware could then have a very simple
+// mcu that simply translates IO to serial commands, like ATN etc. Then this
+// application can simply transfer data through the hardware interface.
+//
+// Probably that should be step 1. Step 2 would be to integrate the software
+// as originally intended, to read disks from a usb-stick and directly communicate
+// with the c64.
+
 namespace d64
 {
     //   Bytes:$00-01: Track/Sector location of the first directory sector (should
