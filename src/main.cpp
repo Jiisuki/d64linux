@@ -1,9 +1,9 @@
-#include <iostream>
-#include <iomanip>
+#include "../lib/d64.hpp"
 #include <cmath>
 #include <deque>
+#include <iomanip>
+#include <iostream>
 #include <utility>
-#include "../lib/d64.hpp"
 
 void show_compilation_list(const std::vector<d64::Program>& programs);
 void show_data(const d64::d64& disk, int track, int sector, bool ascii = false);
@@ -21,7 +21,7 @@ enum class Operations
 
 struct Operation
 {
-    Operations op;
+    Operations  op;
     std::string arg;
     explicit Operation(Operations perf, std::string argument = {}) : op(perf), arg(std::move(argument)) {}
     ~Operation() = default;
@@ -34,7 +34,7 @@ static void print_usage()
     std::cout << "\t-d       \tShows disk directory information." << std::endl;
     std::cout << "\t-p       \tShows disk partitioning information." << std::endl;
     std::cout << "\t-f       \tFormats the disk." << std::endl;
-    std::cout << "\t-a <prg> \tAdd a program that will be burned to the disk upon save. Only the list of programs will be added." << std::endl;
+    std::cout << "\t-a <prg> \tAdd a program to the disk. Only the list of programs will be added." << std::endl;
     std::cout << "\t-o <disk>\tCreates and saves a disk." << std::endl;
     std::cout << std::endl;
     std::cout << "Example to show partitioning and contents of an existing disk:" << std::endl;
@@ -48,6 +48,65 @@ static void print_usage()
     std::cout << std::endl;
 }
 
+void sort_operations(std::deque<Operation>& ops)
+{
+    std::deque<Operation> sorted {};
+
+    /* Look for format operation, this shall be first. */
+    auto fmt = std::find_if(
+            ops.begin(),
+            ops.end(),
+            [&](const auto& item)
+            {
+                return Operations::FormatDisk == item.op;
+            });
+
+    if (ops.end() != fmt)
+    {
+        sorted.push_back(*fmt);
+        ops.erase(fmt);
+    }
+
+    /* Look for add program operations. */
+    auto it = ops.begin();
+    while (ops.end() != it)
+    {
+        if (Operations::AddProgram == it->op)
+        {
+            sorted.push_back(*it);
+            it = ops.erase(it);
+        }
+        else
+        {
+            it++;
+        }
+    }
+
+    /* Look for create operation. */
+    auto create = std::find_if(
+            ops.begin(),
+            ops.end(),
+            [&](const auto& item)
+            {
+                return Operations::CreateDisk == item.op;
+            });
+
+    if (ops.end() != create)
+    {
+        sorted.push_back(*create);
+        ops.erase(create);
+    }
+
+    /* Add remaining operations, their order does not matter. */
+    for (const auto& o : ops)
+    {
+        sorted.push_back(o);
+    }
+
+    /* Replace output. */
+    ops = sorted;
+}
+
 int main(int argc, char* argv[])
 {
     if (argc < 2)
@@ -57,9 +116,18 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    const auto assert_argument = [](int argc, int i) { if (argc <= (i + 1)) { std::cerr << "Invalid argument." << std::endl; print_usage(); return true; } return false; };
+    const auto assert_argument = [](int argc, int i)
+    {
+        if (argc <= (i + 1))
+        {
+            std::cerr << "Invalid argument." << std::endl;
+            print_usage();
+            return true;
+        }
+        return false;
+    };
 
-    d64::d64 disk {};
+    d64::d64              disk {};
     std::deque<Operation> operations {};
 
     for (auto i = 0; i < argc; i++)
@@ -69,7 +137,10 @@ int main(int argc, char* argv[])
             switch (argv[i][1])
             {
                 case 'o':
-                    if (assert_argument(argc, i)) { return 1; }
+                    if (assert_argument(argc, i))
+                    {
+                        return 1;
+                    }
                     operations.emplace_back(Operations::CreateDisk, argv[i + 1]);
                     i++;
                     break;
@@ -83,11 +154,24 @@ int main(int argc, char* argv[])
                     break;
 
                 case 'f':
-                    operations.emplace_back(Operations::FormatDisk);
+                    /* Only format once. */
+                    if (std::none_of(
+                                operations.begin(),
+                                operations.end(),
+                                [](const Operation& op)
+                                {
+                                    return Operations::FormatDisk == op.op;
+                                }))
+                    {
+                        operations.emplace_back(Operations::FormatDisk);
+                    }
                     break;
 
                 case 'a':
-                    if (assert_argument(argc, i)) { return 1; }
+                    if (assert_argument(argc, i))
+                    {
+                        return 1;
+                    }
                     operations.emplace_back(Operations::AddProgram, argv[i + 1]);
                     i++;
                     break;
@@ -105,6 +189,7 @@ int main(int argc, char* argv[])
     }
 
     std::vector<d64::Program> programs {};
+    sort_operations(operations);
 
     while (!operations.empty())
     {
@@ -162,13 +247,13 @@ void show_compilation_list(const std::vector<d64::Program>& programs)
 void show_data(const d64::d64& disk, int track, int sector, bool ascii)
 {
     auto disk_sector = disk.read_sector(track + 1, sector);
-    auto data = disk_sector.get_sector_data();
+    auto data        = disk_sector.get_sector_data();
 
     if (ascii)
     {
         for (auto ix = 0; ix < d64::SECTOR_SIZE; ix += 32)
         {
-            auto cnt = std::min(32u, d64::SECTOR_SIZE - ix);
+            auto cnt  = std::min(32u, d64::SECTOR_SIZE - ix);
             auto line = std::vector<std::uint8_t>(disk_sector.get_bytes(ix, cnt));
             std::cout << d64::pet_ascii_to_string(line) << std::endl;
         }
@@ -177,11 +262,12 @@ void show_data(const d64::d64& disk, int track, int sector, bool ascii)
     {
         for (auto ix = 0; ix < d64::SECTOR_SIZE; ix += 16)
         {
-            auto cnt = std::min(16u, d64::SECTOR_SIZE - ix);
+            auto cnt  = std::min(16u, d64::SECTOR_SIZE - ix);
             auto line = disk_sector.get_bytes(ix, cnt);
-            for (const auto &b: line)
+            for (const auto& b : line)
             {
-                std::cout << std::hex << std::setfill('0') << std::setw(2) << std::uppercase << static_cast<unsigned>(b) << " ";
+                std::cout << std::hex << std::setfill('0') << std::setw(2) << std::uppercase << static_cast<unsigned>(b)
+                          << " ";
             }
             std::cout << std::endl;
         }
@@ -190,10 +276,10 @@ void show_data(const d64::d64& disk, int track, int sector, bool ascii)
 
 void show_bam(const d64::d64& disk)
 {
-    unsigned data_usage = 0;
+    unsigned data_usage     = 0;
     unsigned disk_size_sect = 0;
 
-    for (auto track = 1u; track <= disk.get_disk_size(); track++ )
+    for (auto track = 1u; track <= disk.get_disk_size(); track++)
     {
         auto is_free = disk.track_space_free(track);
         disk_size_sect += is_free.size();
@@ -226,8 +312,16 @@ void show_bam(const d64::d64& disk)
 void show_directory(const d64::d64& disk)
 {
     auto dir = disk.get_directory();
-    for (const auto& d : dir)
+    if (dir.empty())
     {
-        std::cout << d.get_title() << "   " << std::setfill('0') << std::setw(3) << d.get_block_size() << " blocks   " << d.get_prg_extension() << std::endl;
+        std::cout << "Disk directory is empty." << std::endl;
+    }
+    else
+    {
+        for (const auto& d : dir)
+        {
+            std::cout << d.get_title() << "   " << std::setfill('0') << std::setw(3) << d.get_block_size()
+                      << " blocks   " << d.get_prg_extension() << std::endl;
+        }
     }
 }
