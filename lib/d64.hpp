@@ -276,6 +276,11 @@ namespace d64
 
         ~Entry() = default;
 
+        bool operator==(const Entry& other) const
+        {
+            return next_dir_track == other.next_dir_track && next_dir_sector == other.next_dir_sector && on_track == other.on_track && on_sector == other.on_sector;
+        }
+
         void set_title(const byte_vector& petascii) { title = pet_ascii_to_string(petascii); }
 
         [[nodiscard]] std::string get_title() const { return title; }
@@ -328,8 +333,8 @@ namespace d64
 
         [[nodiscard]] byte_array<2> get_block_size_array() const
         {
-            return { static_cast<byte>((block_size / SECTOR_SIZE) & 0xFF),
-                     static_cast<byte>(((block_size / SECTOR_SIZE) >> 8u) & 0xFF) };
+            return { static_cast<byte>(block_size & 0xFF),
+                     static_cast<byte>((block_size >> 8u) & 0xFF) };
         }
     };
 
@@ -345,7 +350,11 @@ namespace d64
 
         explicit Program(const std::string& file) : filename(file)
         {
-            if (16 < file.length())
+            if (4 < file.length())
+            {
+                name = file.substr(0, file.length() - 4);
+            }
+            else if (16 < file.length())
             {
                 name = file.substr(file.length() - 20, 16);
             }
@@ -662,9 +671,10 @@ namespace d64
                         nt++;
                     }
 
-                    /* todo check last program */
-                    if (false)
+                    if (e == directory.back())
                     {
+                        image[t][s][offset] = 0;
+                        image[t][s][offset + 1] = 0;
                     }
                     else
                     {
@@ -678,11 +688,11 @@ namespace d64
                     image[t][s][offset + 1] = 0;
                 }
 
-                image[t][2][offset + 2] = 0x82;
+                image[t][s][offset + 2] = 0x82;
                 image[t][s][offset + 3] = e.get_first_track();
                 image[t][s][offset + 4] = e.get_first_sector();
-                image[t][s].set_bytes(e.get_name(), 5);
-                image[t][s].set_bytes(e.get_block_size_array(), 0x1E);
+                image[t][s].set_bytes(e.get_name(), offset + 5);
+                image[t][s].set_bytes(e.get_block_size_array(), offset + 0x1E);
 
                 offset += DIR_ENTRY_SIZE;
                 if (SECTOR_SIZE <= offset)

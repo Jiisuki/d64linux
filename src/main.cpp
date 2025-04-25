@@ -211,7 +211,6 @@ int main(int argc, char* argv[])
                 break;
 
             case Operations::AddProgram:
-                std::cout << "Adding program '" << op.arg << "'" << std::endl;
                 programs.emplace_back(op.arg);
                 break;
 
@@ -222,6 +221,8 @@ int main(int argc, char* argv[])
                 }
                 else
                 {
+                    std::cout << "Creating disk:" << std::endl;
+                    show_compilation_list(programs);
                     disk.generate_disk(programs, "NULL");
                 }
                 std::cout << "Saving disk to '" << op.arg << "'" << std::endl;
@@ -240,7 +241,8 @@ void show_compilation_list(const std::vector<d64::Program>& programs)
 {
     for (const auto& prg : programs)
     {
-        std::cout << prg.get_name() << "   " << std::to_string(std::ceil(prg.size() / 256)) << " sectors." << std::endl;
+        std::cout << prg.get_name() << "   " << std::to_string(static_cast<unsigned>(std::ceil(prg.size() / 256)))
+                  << " blocks." << std::endl;
     }
 }
 
